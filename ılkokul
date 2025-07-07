@@ -1,0 +1,211 @@
+using System;
+using System.Data.SqlClient;
+using System.Text;
+
+class SehitkamilIlkokuluDB
+{
+    static string connectionString = "Data Source=.;Initial Catalog=master;Integrated Security=True;TrustServerCertificate=True";
+
+    static void Main(string[] args)
+    {
+        Console.WriteLine("Şehitkamil İlkokulu Veritabanı İşlemleri Başlıyor...");
+
+        CreateDatabase();
+        connectionString = "Data Source=.;Initial Catalog=SehitkamilIlkokulu;Integrated Security=True;TrustServerCertificate=True";
+
+        CreateTables();
+        InsertData();
+
+        Console.WriteLine("\nVeritabanı işlemleri tamamlandı!");
+        Console.ReadKey();
+    }
+
+    static void CreateDatabase()
+    {
+        Console.WriteLine("Veritabanı oluşturuluyor...");
+        string createDbQuery = "IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = 'SehitkamilIlkokulu') " +
+                               "CREATE DATABASE SehitkamilIlkokulu;";
+        ExecuteNonQuery(createDbQuery, true);
+        Console.WriteLine("Veritabanı oluşturuldu veya zaten var.");
+    }
+
+    static void CreateTables()
+    {
+        Console.WriteLine("Tablolar oluşturuluyor...");
+
+        string createSiniflarTable = @"
+            IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='Sınıflar' AND xtype='U')
+            CREATE TABLE Sınıflar (
+                SınıfID INT PRIMARY KEY IDENTITY(1,1),
+                SınıfAdi NVARCHAR(50) NOT NULL UNIQUE
+            );";
+        ExecuteNonQuery(createSiniflarTable);
+
+        string createDerslerTable = @"
+            IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='Dersler' AND xtype='U')
+            CREATE TABLE Dersler (
+                DersID INT PRIMARY KEY IDENTITY(1,1),
+                DersAdi NVARCHAR(100) NOT NULL UNIQUE
+            );";
+        ExecuteNonQuery(createDerslerTable);
+
+        string createOgretmenlerTable = @"
+            IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='Ogretmenler' AND xtype='U')
+            CREATE TABLE Ogretmenler (
+                OgretmenID INT PRIMARY KEY IDENTITY(1,1),
+                Ad NVARCHAR(50) NOT NULL,
+                Soyad NVARCHAR(50) NOT NULL,
+                Telefon NVARCHAR(20),
+                Email NVARCHAR(100) UNIQUE
+            );";
+        ExecuteNonQuery(createOgretmenlerTable);
+
+        string createOgrencilerTable = @"
+            IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='Ogrenciler' AND xtype='U')
+            CREATE TABLE Ogrenciler (
+                OgrenciID INT PRIMARY KEY IDENTITY(1,1),
+                Ad NVARCHAR(50) NOT NULL,
+                Soyad NVARCHAR(50) NOT NULL,
+                OgrenciNumarasi NVARCHAR(20) NOT NULL UNIQUE,
+                SıraNumarasi INT NULL,
+                SınıfID INT,
+                CONSTRAINT FK_Ogrenci_Sınıf FOREIGN KEY (SınıfID) REFERENCES Sınıflar(SınıfID)
+            );";
+        ExecuteNonQuery(createOgrencilerTable);
+
+        string createOgretmenDersleriTable = @"
+            IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='OgretmenDersleri' AND xtype='U')
+            CREATE TABLE OgretmenDersleri (
+                OgretmenDersID INT PRIMARY KEY IDENTITY(1,1),
+                OgretmenID INT,
+                DersID INT,
+                CONSTRAINT FK_OgretmenDersleri_Ogretmen FOREIGN KEY (OgretmenID) REFERENCES Ogretmenler(OgretmenID),
+                CONSTRAINT FK_OgretmenDersleri_Ders FOREIGN KEY (DersID) REFERENCES Dersler(DersID),
+                UNIQUE (OgretmenID, DersID)
+            );";
+        ExecuteNonQuery(createOgretmenDersleriTable);
+
+        string createOgrenciDersleriTable = @"
+            IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='OgrenciDersleri' AND xtype='U')
+            CREATE TABLE OgrenciDersleri (
+                OgrenciDersID INT PRIMARY KEY IDENTITY(1,1),
+                OgrenciID INT,
+                DersID INT,
+                CONSTRAINT FK_OgrenciDersleri_Ogrenci FOREIGN KEY (OgrenciID) REFERENCES Ogrenciler(OgrenciID),
+                CONSTRAINT FK_OgrenciDersleri_Ders FOREIGN KEY (DersID) REFERENCES Dersler(DersID),
+                UNIQUE (OgrenciID, DersID)
+            );";
+        ExecuteNonQuery(createOgrenciDersleriTable);
+
+        Console.WriteLine("Tablolar oluşturuldu veya zaten var.");
+    }
+
+    static void InsertData()
+    {
+        Console.WriteLine("Veriler ekleniyor...");
+
+        string insertSiniflar = @"
+            INSERT INTO Sınıflar (SınıfAdi) VALUES
+            ('1-A'), ('1-B'), ('2-A'), ('2-B'), ('3-A'), ('4-A'), ('5-A');";
+        ExecuteNonQuery(insertSiniflar, checkExists: true, tableName: "Sınıflar", columnName: "SınıfAdi");
+
+        string insertDersler = @"
+            INSERT INTO Dersler (DersAdi) VALUES
+            ('Türkçe'), ('Matematik'), ('Hayat Bilgisi'), ('Fen Bilimleri'),
+            ('Sosyal Bilgiler'), ('Müzik'), ('Görsel Sanatlar'), ('Beden Eğitimi');";
+        ExecuteNonQuery(insertDersler, checkExists: true, tableName: "Dersler", columnName: "DersAdi");
+
+        string insertOgretmenler = @"
+            INSERT INTO Ogretmenler (Ad, Soyad, Telefon, Email) VALUES
+            ('Ayşe', 'Yılmaz', '5551112233', 'ayse.yilmaz@example.com'),
+            ('Mehmet', 'Demir', '5552223344', 'mehmet.demir@example.com'),
+            ('Zeynep', 'Kaya', '5553334455', 'zeynep.kaya@example.com'),
+            ('Can', 'Cansever', '5554445566', 'can.cansever@example.com');";
+        ExecuteNonQuery(insertOgretmenler, checkExists: true, tableName: "Ogretmenler", columnName: "Email");
+
+        string insertOgrenciler = @"
+            INSERT INTO Ogrenciler (Ad, Soyad, OgrenciNumarasi, SıraNumarasi, SınıfID) VALUES
+            ('Elif', 'Aksoy', '2025001', 1, (SELECT SınıfID FROM Sınıflar WHERE SınıfAdi = '1-A')),
+            ('Deniz', 'Çelik', '2025002', 2, (SELECT SınıfID FROM Sınıflar WHERE SınıfAdi = '1-A')),
+            ('Burak', 'Doğan', '2025003', 1, (SELECT SınıfID FROM Sınıflar WHERE SınıfAdi = '2-A')),
+            ('Yağmur', 'Eren', '2025004', 2, (SELECT SınıfID FROM Sınıflar WHERE SınıfAdi = '2-A')),
+            ('Kerem', 'Güler', '2025005', 1, (SELECT SınıfID FROM Sınıflar WHERE SınıfAdi = '3-A')),
+            ('Aslı', 'Uysal', '2025006', 1, (SELECT SınıfID FROM Sınıflar WHERE SınıfAdi = '5-A'));";
+        ExecuteNonQuery(insertOgrenciler, checkExists: true, tableName: "Ogrenciler", columnName: "OgrenciNumarasi");
+
+        string insertOgretmenDersleri = @"
+            INSERT INTO OgretmenDersleri (OgretmenID, DersID) VALUES
+            ((SELECT OgretmenID FROM Ogretmenler WHERE Ad = 'Ayşe' AND Soyad = 'Yılmaz'), (SELECT DersID FROM Dersler WHERE DersAdi = 'Türkçe')),
+            ((SELECT OgretmenID FROM Ogretmenler WHERE Ad = 'Ayşe' AND Soyad = 'Yılmaz'), (SELECT DersID FROM Dersler WHERE DersAdi = 'Hayat Bilgisi')),
+            ((SELECT OgretmenID FROM Ogretmenler WHERE Ad = 'Mehmet' AND Soyad = 'Demir'), (SELECT DersID FROM Dersler WHERE DersAdi = 'Matematik')),
+            ((SELECT OgretmenID FROM Ogretmenler WHERE Ad = 'Mehmet' AND Soyad = 'Demir'), (SELECT DersID FROM Dersler WHERE DersAdi = 'Fen Bilimleri')),
+            ((SELECT OgretmenID FROM Ogretmenler WHERE Ad = 'Zeynep' AND Soyad = 'Kaya'), (SELECT DersID FROM Dersler WHERE DersAdi = 'Sosyal Bilgiler')),
+            ((SELECT OgretmenID FROM Ogretmenler WHERE Ad = 'Can' AND Soyad = 'Cansever'), (SELECT DersID FROM Dersler WHERE DersAdi = 'Müzik')),
+            ((SELECT OgretmenID FROM Ogretmenler WHERE Ad = 'Can' AND Soyad = 'Cansever'), (SELECT DersID FROM Dersler WHERE DersAdi = 'Görsel Sanatlar'));";
+        ExecuteNonQuery(insertOgretmenDersleri);
+
+        string insertOgrenciDersleri = @"
+            INSERT INTO OgrenciDersleri (OgrenciID, DersID) VALUES
+            ((SELECT OgrenciID FROM Ogrenciler WHERE OgrenciNumarasi = '2025001'), (SELECT DersID FROM Dersler WHERE DersAdi = 'Türkçe')),
+            ((SELECT OgrenciID FROM Ogrenciler WHERE OgrenciNumarasi = '2025001'), (SELECT DersID FROM Dersler WHERE DersAdi = 'Matematik')),
+            ((SELECT OgrenciID FROM Ogrenciler WHERE OgrenciNumarasi = '2025001'), (SELECT DersID FROM Dersler WHERE DersAdi = 'Hayat Bilgisi')),
+            ((SELECT OgrenciID FROM Ogrenciler WHERE OgrenciNumarasi = '2025002'), (SELECT DersID FROM Dersler WHERE DersAdi = 'Türkçe')),
+            ((SELECT OgrenciID FROM Ogrenciler WHERE OgrenciNumarasi = '2025002'), (SELECT DersID FROM Dersler WHERE DersAdi = 'Matematik')),
+            ((SELECT OgrenciID FROM Ogrenciler WHERE OgrenciNumarasi = '2025003'), (SELECT DersID FROM Dersler WHERE DersAdi = 'Türkçe')),
+            ((SELECT OgrenciID FROM Ogrenciler WHERE OgrenciNumarasi = '2025003'), (SELECT DersID FROM Dersler WHERE DersAdi = 'Matematik')),
+            ((SELECT OgrenciID FROM Ogrenciler WHERE OgrenciNumarasi = '2025004'), (SELECT DersID FROM Dersler WHERE DersAdi = 'Fen Bilimleri'));";
+        ExecuteNonQuery(insertOgrenciDersleri);
+
+        Console.WriteLine("Veriler başarıyla eklendi veya zaten var.");
+    }
+
+    static void ExecuteNonQuery(string query, bool useMasterDb = false, bool checkExists = false, string tableName = "", string columnName = "")
+    {
+        string currentConnectionString = useMasterDb ? "Data Source=.;Initial Catalog=master;Integrated Security=True;TrustServerCertificate=True" : connectionString;
+
+        using (SqlConnection connection = new SqlConnection(currentConnectionString))
+        {
+            try
+            {
+                connection.Open();
+                SqlCommand command = new SqlCommand(query, connection);
+
+                if (checkExists && !string.IsNullOrEmpty(tableName) && !string.IsNullOrEmpty(columnName))
+                {
+                    string checkQuery;
+                    if (query.Contains("INSERT INTO"))
+                    {
+                        string valuesPart = query.Substring(query.IndexOf("VALUES (") + 8);
+                        valuesPart = valuesPart.Split(')')[0];
+                        string uniqueValue = valuesPart.Split(',')[0].Trim().Replace("'", "");
+
+                        checkQuery = $"SELECT COUNT(*) FROM {tableName} WHERE {columnName} = '{uniqueValue}'";
+
+                        using (SqlCommand checkCommand = new SqlCommand(checkQuery, connection))
+                        {
+                            int count = (int)checkCommand.ExecuteScalar();
+                            if (count > 0)
+                            {
+                                Console.WriteLine($"  '{uniqueValue}' zaten '{tableName}' tablosunda mevcut. Atlanıyor.");
+                                return;
+                            }
+                        }
+                    }
+                }
+                command.ExecuteNonQuery();
+            }
+            catch (SqlException ex)
+            {
+                Console.WriteLine($"Hata oluştu: {ex.Message}");
+                if (ex.Number == 2627)
+                {
+                    Console.WriteLine("Bu kayıt zaten mevcut olabilir veya benzersizlik hatası var.");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Beklenmeyen hata: {ex.Message}");
+            }
+        }
+    }
+}
